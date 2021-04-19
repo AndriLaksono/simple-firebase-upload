@@ -21,6 +21,9 @@ class _AddImageState extends State<AddImage> {
   List<File> _image = [];
   final picker = ImagePicker();
 
+  bool uploading = false;
+  double progress = 0;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -30,31 +33,53 @@ class _AddImageState extends State<AddImage> {
           IconButton(
             icon: Icon(Icons.upload_file), 
             onPressed: () {
+              setState(() => uploading = true);
               uploadFile().whenComplete(() => Navigator.of(context).pop());
             }
           )
         ],
       ),
-      body: GridView.builder(
-        itemCount: _image.length + 1,
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3), 
-        itemBuilder: (context, index) {
-          return index == 0
+      body: Stack(
+        children: [
+          GridView.builder(
+            itemCount: _image.length + 1,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3), 
+            itemBuilder: (context, index) {
+              return index == 0
+                ? Center(
+                  child: IconButton(
+                    icon: Icon(Icons.add), 
+                    onPressed: () {
+                      if(!uploading) chooseImage();
+                    }
+                  ),
+                )
+                : Container(
+                  margin: EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    image: DecorationImage(image: FileImage(_image[index-1]), fit: BoxFit.cover),
+                  ),
+                );
+            }
+          ),
+          uploading 
             ? Center(
-              child: IconButton(
-                icon: Icon(Icons.add), 
-                onPressed: () {
-                  chooseImage();
-                }
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    child: Text('uploading...', style: TextStyle(fontSize: 20)),
+                  ),
+                  SizedBox(height: 10),
+                  CircularProgressIndicator(
+                    value: progress,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+                  )
+                ],
               ),
             )
-            : Container(
-              margin: EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                image: DecorationImage(image: FileImage(_image[index-1]), fit: BoxFit.cover),
-              ),
-            );
-        }
+            : Container()
+        ]
       ),
     );
   }
@@ -82,11 +107,16 @@ class _AddImageState extends State<AddImage> {
   }
 
   Future uploadFile() async {
+    int i = 1;
     for (var img in _image) {
+      setState(() {
+        progress = i / _image.length;
+      });
       ref = firebase_storage.FirebaseStorage.instance.ref()
               .child('images/${Path.basename(img.path)}');
       await ref.putFile(img).whenComplete(() async {
         await ref.getDownloadURL().then((value) => imgRef.add({ 'ref': value }));
+        i++;
       });
     }
   }
